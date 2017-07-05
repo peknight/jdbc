@@ -66,7 +66,7 @@ public class DynamicDataSourceAspect {
 		if (!StringUtils.isEmpty(dataSourceName)) {
 			if (DynamicDataSourceContext.containsDataSourceName(dataSourceName)) {
 				DynamicDataSourceContext.setDataSourceName(dataSourceName);
-				logger.info("{}(..) {} DataSource [{}] ...", methodName, keep ? "Switch" : "Use", dataSourceName);
+				logger.info("{}(..) Switch DataSource [{}] ...", methodName, dataSourceName);
 			} else {
 				if (error) {
 					logger.error("{}(..) DataSource [{}] does not exist, Please check your settings!", methodName, dataSourceName);
