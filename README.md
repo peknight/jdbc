@@ -26,7 +26,7 @@
 ##### 原作者信息
 
 * @author 单红宇(365384722)
-* @myblog http://blog.csdn.net/catoop/
+* @blog http://blog.csdn.net/catoop/
 * @create 2016年1月20日
 
 ##### 原文链接
