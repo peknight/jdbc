@@ -1,4 +1,5 @@
 log/
+/jdbc/
 
 .mvn/
 mvnw
