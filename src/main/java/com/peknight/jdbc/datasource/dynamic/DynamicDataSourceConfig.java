@@ -47,10 +47,11 @@ public class DynamicDataSourceConfig {
 
 	@Bean
 	public DataSource dataSource(Environment environment) {
-		primaryDataSource = buildDataSource(environment, PRIMARY_PREFIX);
+		String urlPrefix = environment.getProperty(PRIMARY_PREFIX + "prefix");
+		String urlSuffix = environment.getProperty(PRIMARY_PREFIX + "suffix");
+		primaryDataSource = buildDataSource(environment, PRIMARY_PREFIX, urlPrefix, urlSuffix);
 		DynamicDataSourceContext.getDataSourceNames().add(PRIMARY_DATA_SOURCE_NAME);
-
-		initSecondaryDataSources(environment, SECONDARY_PREFIX);
+		initSecondaryDataSources(environment, SECONDARY_PREFIX, urlPrefix, urlSuffix);
 		Map<Object, Object> targetDataSources = new HashMap<>();
 		targetDataSources.put(PRIMARY_DATA_SOURCE_NAME, primaryDataSource);
 		targetDataSources.putAll(secondaryDataSources);
@@ -60,21 +61,28 @@ public class DynamicDataSourceConfig {
 		return dataSource;
 	}
 
-	private void initSecondaryDataSources(Environment environment, String prefix) {
+	private void initSecondaryDataSources(Environment environment, String prefix, String urlPrefix, String urlSuffix) {
 		RelaxedPropertyResolver propertyResolver = new RelaxedPropertyResolver(environment, prefix);
 		String dataSourceNames = propertyResolver.getProperty("list");
 		if (!StringUtils.isEmpty(dataSourceNames)) {
 			for (String secondaryDataSourceName : dataSourceNames.split("\\s*,\\s*")) {
-				DataSource secondaryDataSource = buildDataSource(environment, prefix + secondaryDataSourceName + ".");
+				DataSource secondaryDataSource = buildDataSource(environment, prefix + secondaryDataSourceName + ".", urlPrefix, urlSuffix);
 				secondaryDataSources.put(secondaryDataSourceName, secondaryDataSource);
 				DynamicDataSourceContext.getDataSourceNames().add(secondaryDataSourceName);
 			}
 		}
 	}
 
-	private DataSource buildDataSource(Environment environment, String prefix) {
+	private DataSource buildDataSource(Environment environment, String prefix, String urlPrefix, String urlSuffix) {
 		RelaxedPropertyResolver propertyResolver = new RelaxedPropertyResolver(environment, prefix);
 		String url = propertyResolver.getProperty("url");
+		if (StringUtils.isEmpty(url)) {
+			String currentUrlPrefix = propertyResolver.getProperty("prefix");
+			String currentUrlSuffix = propertyResolver.getProperty("suffix");
+			urlPrefix = StringUtils.isEmpty(currentUrlPrefix) ? urlPrefix : currentUrlPrefix;
+			urlSuffix = StringUtils.isEmpty(urlSuffix) ? urlSuffix : currentUrlSuffix;
+			url = "jdbc:" + urlPrefix + propertyResolver.getProperty("ip") + ":" + propertyResolver.getProperty("port") + urlSuffix;
+		}
 		String username = propertyResolver.getProperty("username");
 		String password = propertyResolver.getProperty("password");
 		String driverClassName = propertyResolver.getProperty("driver-class-name");
