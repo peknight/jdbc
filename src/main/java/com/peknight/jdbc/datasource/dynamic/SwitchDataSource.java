@@ -53,8 +53,4 @@ public @interface SwitchDataSource {
 	Class<? extends DetermineDataSource> determineDataSourceClass() default SimpleDetermineDataSource.class;
 
 	String value() default "";
-
-	boolean keep() default false;
-
-	boolean error() default false;
 }

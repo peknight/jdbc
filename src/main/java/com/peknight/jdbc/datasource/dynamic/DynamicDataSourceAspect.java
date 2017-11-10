@@ -60,27 +60,24 @@ public class DynamicDataSourceAspect {
 		Class<? extends DetermineDataSource> determineDataSourceClass = switchDataSource.determineDataSourceClass();
 		DetermineDataSource determineDataSource = determineDataSourceClass.newInstance();
 		String dataSourceName = determineDataSource.getDataSourceName(proceedingJoinPoint, switchDataSource.value());
-		boolean keep = switchDataSource.keep();
-		boolean error = switchDataSource.error();
 
 		if (!StringUtils.isEmpty(dataSourceName)) {
 			if (DynamicDataSourceContext.containsDataSourceName(dataSourceName)) {
 				DynamicDataSourceContext.setDataSourceName(dataSourceName);
 				logger.info("{}(..) Switch DataSource [{}] ...", methodName, dataSourceName);
 			} else {
-				if (error) {
-					logger.error("{}(..) DataSource [{}] does not exist, Please check your settings!", methodName, dataSourceName);
-					throw new DataSourceLookupFailureException(String.format("DataSource [%s] does not exist, Please check your settings!", dataSourceName));
-				} else {
-					logger.warn("{}(..) DataSource [{}] does not exist, Default dataSource will be used!", methodName, dataSourceName);
-				}
+				logger.error("{}(..) DataSource [{}] does not exist, Please check your settings!", methodName, dataSourceName);
+				throw new DataSourceLookupFailureException(String.format("DataSource [%s] does not exist, Please check your settings!", dataSourceName));
 			}
 		}
-        Object object = proceedingJoinPoint.proceed();
-        if (!keep) {
+
+		try {
+			return proceedingJoinPoint.proceed();
+		} catch (Throwable throwable) {
+			throw throwable;
+		} finally {
 			DynamicDataSourceContext.clearDataSourceName();
 			logger.info("{}(..) Reset DataSource [{}]", methodName, DynamicDataSourceConfig.PRIMARY_DATA_SOURCE_NAME);
 		}
-        return object;
 	}
 }
