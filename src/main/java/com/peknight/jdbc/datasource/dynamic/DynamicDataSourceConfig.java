@@ -24,10 +24,13 @@
 package com.peknight.jdbc.datasource.dynamic;
 
 import com.peknight.common.string.StringUtils;
-import org.springframework.boot.autoconfigure.jdbc.DataSourceBuilder;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties;
+import org.springframework.boot.bind.PropertiesConfigurationFactory;
 import org.springframework.boot.bind.RelaxedPropertyResolver;
 import org.springframework.context.annotation.Bean;
-import org.springframework.core.env.Environment;
+import org.springframework.core.env.ConfigurableEnvironment;
+import org.springframework.core.env.MutablePropertySources;
+import org.springframework.validation.BindException;
 
 import javax.sql.DataSource;
 import java.util.HashMap;
@@ -35,7 +38,7 @@ import java.util.Map;
 
 public class DynamicDataSourceConfig {
 
-	public static final String PRIMARY_PREFIX = "spring.datasource.";
+	public static final String PRIMARY_PREFIX = "spring.datasource";
 
 	public static final String SECONDARY_PREFIX = "secondary.datasource.";
 
@@ -46,12 +49,10 @@ public class DynamicDataSourceConfig {
 	private Map<String, DataSource> secondaryDataSources = new HashMap<>();
 
 	@Bean
-	public DataSource dataSource(Environment environment) {
-		String urlPrefix = environment.getProperty(PRIMARY_PREFIX + "prefix");
-		String urlSuffix = environment.getProperty(PRIMARY_PREFIX + "suffix");
-		primaryDataSource = buildDataSource(environment, PRIMARY_PREFIX, urlPrefix, urlSuffix);
+	public DataSource dataSource(ConfigurableEnvironment environment) throws BindException {
+		primaryDataSource = buildDataSource(environment, PRIMARY_PREFIX);
 		DynamicDataSourceContext.getDataSourceNames().add(PRIMARY_DATA_SOURCE_NAME);
-		initSecondaryDataSources(environment, SECONDARY_PREFIX, urlPrefix, urlSuffix);
+		initSecondaryDataSources(environment, SECONDARY_PREFIX);
 		Map<Object, Object> targetDataSources = new HashMap<>();
 		targetDataSources.put(PRIMARY_DATA_SOURCE_NAME, primaryDataSource);
 		targetDataSources.putAll(secondaryDataSources);
@@ -61,42 +62,51 @@ public class DynamicDataSourceConfig {
 		return dataSource;
 	}
 
-	private void initSecondaryDataSources(Environment environment, String prefix, String urlPrefix, String urlSuffix) {
+	private void initSecondaryDataSources(ConfigurableEnvironment environment, String prefix) throws BindException {
 		RelaxedPropertyResolver propertyResolver = new RelaxedPropertyResolver(environment, prefix);
-		String dataSourceNames = propertyResolver.getProperty("list");
+		String dataSourceNames = propertyResolver.getProperty("names");
 		if (!StringUtils.isEmpty(dataSourceNames)) {
 			for (String secondaryDataSourceName : dataSourceNames.split("\\s*,\\s*")) {
-				DataSource secondaryDataSource = buildDataSource(environment, prefix + secondaryDataSourceName + ".", urlPrefix, urlSuffix);
+				DataSource secondaryDataSource = buildDataSource(environment, prefix + secondaryDataSourceName);
 				secondaryDataSources.put(secondaryDataSourceName, secondaryDataSource);
 				DynamicDataSourceContext.getDataSourceNames().add(secondaryDataSourceName);
 			}
 		}
 	}
 
-	private DataSource buildDataSource(Environment environment, String prefix, String urlPrefix, String urlSuffix) {
-		RelaxedPropertyResolver propertyResolver = new RelaxedPropertyResolver(environment, prefix);
-		String url = propertyResolver.getProperty("url");
-		if (StringUtils.isEmpty(url)) {
-			String currentUrlPrefix = propertyResolver.getProperty("prefix");
-			String currentUrlSuffix = propertyResolver.getProperty("suffix");
-			urlPrefix = StringUtils.isEmpty(currentUrlPrefix) ? urlPrefix : currentUrlPrefix;
-			urlSuffix = StringUtils.isEmpty(urlSuffix) ? urlSuffix : currentUrlSuffix;
-			url = "jdbc:" + urlPrefix + propertyResolver.getProperty("ip") + ":" + propertyResolver.getProperty("port") + urlSuffix;
+	private DataSource buildDataSource(ConfigurableEnvironment environment, String prefix) throws BindException {
+		DataSourceProperties properties = createDataSourceProperties(environment, prefix);
+		return properties.initializeDataSourceBuilder().build();
+	}
+
+	public DataSourceProperties createDataSourceProperties(ConfigurableEnvironment environment, String prefix)
+			throws BindException {
+		DataSourceProperties properties = new DataSourceProperties();
+		PropertiesConfigurationFactory<DataSourceProperties> factory = new PropertiesConfigurationFactory<>(properties);
+		MutablePropertySources propertySources = environment.getPropertySources();
+		factory.setPropertySources(propertySources);
+		factory.setTargetName(prefix);
+		factory.bindPropertiesToTarget();
+		if (StringUtils.isEmpty(properties.getUrl())) {
+			String ip = environment.getProperty(prefix + ".ip");
+			if (StringUtils.isEmpty(ip)) {
+				ip = environment.getProperty(PRIMARY_PREFIX + ".ip");
+			}
+			String port = environment.getProperty(prefix + ".port");
+			if (StringUtils.isEmpty(port)) {
+				port = environment.getProperty(PRIMARY_PREFIX + ".port");
+			}
+			String urlPrefix = environment.getProperty(prefix + ".prefix");
+			if (StringUtils.isEmpty(urlPrefix)) {
+				urlPrefix = environment.getProperty(PRIMARY_PREFIX + ".prefix");
+			}
+			String urlSuffix = environment.getProperty(prefix + ".suffix");
+			if (StringUtils.isEmpty(urlSuffix)) {
+				urlSuffix = environment.getProperty(PRIMARY_PREFIX + ".suffix");
+			}
+			String url = "jdbc:" + urlPrefix + ip + ":" + port + urlSuffix;
+			properties.setUrl(url);
 		}
-		String username = propertyResolver.getProperty("username");
-		String password = propertyResolver.getProperty("password");
-		String driverClassName = propertyResolver.getProperty("driver-class-name");
-		String typeName = propertyResolver.getProperty("type");
-		Class<? extends DataSource> type = null;
-		if (!StringUtils.isEmpty(typeName)) {
-			try {
-				type = (Class<? extends DataSource>) Class.forName(propertyResolver.getProperty("type"));
-			} catch (Exception e) {}
-		}
-		DataSourceBuilder dataSourceBuilder = DataSourceBuilder.create().url(url).username(username).password(password).type(type);
-		if (!StringUtils.isEmpty(driverClassName)) {
-			dataSourceBuilder.driverClassName(driverClassName);
-		}
-		return dataSourceBuilder.build();
+		return properties;
 	}
 }

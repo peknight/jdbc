@@ -44,12 +44,11 @@ import java.lang.reflect.Method;
 @Aspect
 public class DynamicDataSourceAspect {
 
+	private static final Logger LOGGER = LoggerFactory.getLogger(DynamicDataSourceAspect.class);
+
 	@Around("@within(com.peknight.jdbc.datasource.dynamic.SwitchDataSource) || @annotation(com.peknight.jdbc.datasource.dynamic.SwitchDataSource)")
 	public Object determineDataSource(ProceedingJoinPoint proceedingJoinPoint) throws Throwable {
 		Method method = ((MethodSignature) proceedingJoinPoint.getSignature()).getMethod();
-		String methodName = method.getName();
-		Logger logger = LoggerFactory.getLogger(method.getDeclaringClass());
-
 		SwitchDataSource switchDataSource;
 		if (method.isAnnotationPresent(SwitchDataSource.class)) {
 			switchDataSource = method.getDeclaredAnnotation(SwitchDataSource.class);
@@ -64,20 +63,19 @@ public class DynamicDataSourceAspect {
 		if (!StringUtils.isEmpty(dataSourceName)) {
 			if (DynamicDataSourceContext.containsDataSourceName(dataSourceName)) {
 				DynamicDataSourceContext.setDataSourceName(dataSourceName);
-				logger.info("{}(..) Switch DataSource [{}] ...", methodName, dataSourceName);
+				LOGGER.debug("Switch DataSource [{}] ...", dataSourceName);
 			} else {
-				logger.error("{}(..) DataSource [{}] does not exist, Please check your settings!", methodName, dataSourceName);
+				LOGGER.error("DataSource [{}] does not exist, Please check your settings!", dataSourceName);
 				throw new DataSourceLookupFailureException(String.format("DataSource [%s] does not exist, Please check your settings!", dataSourceName));
 			}
 		}
-
 		try {
 			return proceedingJoinPoint.proceed();
 		} catch (Throwable throwable) {
 			throw throwable;
 		} finally {
 			DynamicDataSourceContext.clearDataSourceName();
-			logger.info("{}(..) Reset DataSource [{}]", methodName, DynamicDataSourceConfig.PRIMARY_DATA_SOURCE_NAME);
+			LOGGER.debug("Reset DataSource [{}]", DynamicDataSourceConfig.PRIMARY_DATA_SOURCE_NAME);
 		}
 	}
 }
